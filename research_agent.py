@@ -1,3 +1,4 @@
+import os
 import arxiv
 from duckduckgo_search import DDGS
 import openai
