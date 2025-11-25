@@ -3,6 +3,10 @@ import os
 from typing import List, Dict, Optional
 import json
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Import our modules
 from research_agent import ResearchAgent
@@ -204,7 +208,7 @@ def create_gradio_interface():
                     outputs=[research_status, research_output, insights_output, research_state]
                 )
             
-            # TAB 2: ANALYTICS
+            # ========== TAB 2: ANALYTICS ==========
             with gr.Tab("📊 Analytics", id=1):
                 gr.Markdown("### Step 2: Analyze Performance Data")
                 
@@ -244,7 +248,7 @@ def create_gradio_interface():
                     outputs=[analytics_output, recommendations]
                 )
             
-            # TAB 3: CONTENT CREATION
+            # ========== TAB 3: CONTENT CREATION ==========
             with gr.Tab("✨ Create Content", id=2):
                 gr.Markdown("### Step 3: Generate Platform-Specific Content")
                 
@@ -329,7 +333,7 @@ def create_gradio_interface():
                     ]
                 )
             
-            # TAB 4: EXPORT & SCHEDULE
+            # ========== TAB 4: EXPORT & SCHEDULE ==========
             with gr.Tab("📅 Export & Schedule", id=3):
                 gr.Markdown("### Step 4: Schedule or Export Your Content")
                 
