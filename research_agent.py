@@ -28,19 +28,26 @@ class ResearchAgent:
             )
             
             results = []
+            count = 0
             for paper in search.results():
+                if count >= max_results:
+                    break
                 results.append({
                     "title": paper.title,
                     "authors": [author.name for author in paper.authors],
-                    "summary": paper.summary[:500] + "...",
+                    "summary": paper.summary[:500] + ("..." if len(paper.summary) > 500 else ""),
                     "published": paper.published.isoformat(),
                     "url": paper.pdf_url,
                     "categories": paper.categories
                 })
+                count += 1
             
+            print(f"ArXiv search returned {len(results)} results")
             return results
         except Exception as e:
             print(f"ArXiv search error: {e}")
+            import traceback
+            traceback.print_exc()
             return []
     
     def search_web(self, query: str, max_results: int = 5) -> List[Dict]:
@@ -48,16 +55,22 @@ class ResearchAgent:
         try:
             results = []
             with DDGS() as ddgs:
-                for r in ddgs.text(query, max_results=max_results):
+                search_results = ddgs.text(query, max_results=max_results)
+                for r in search_results:
                     results.append({
                         "title": r.get("title", ""),
                         "snippet": r.get("body", ""),
                         "url": r.get("href", ""),
                         "source": "web"
                     })
+                    if len(results) >= max_results:
+                        break
+            print(f"Web search returned {len(results)} results")
             return results
         except Exception as e:
             print(f"Web search error: {e}")
+            import traceback
+            traceback.print_exc()
             return []
     
     def search_youtube(self, query: str, max_results: int = 5) -> List[Dict]:
@@ -68,16 +81,22 @@ class ResearchAgent:
             results = []
             with DDGS() as ddgs:
                 youtube_query = f"site:youtube.com {query}"
-                for r in ddgs.text(youtube_query, max_results=max_results):
+                search_results = ddgs.text(youtube_query, max_results=max_results)
+                for r in search_results:
                     results.append({
                         "title": r.get("title", ""),
                         "snippet": r.get("body", ""),
                         "url": r.get("href", ""),
                         "source": "youtube"
                     })
+                    if len(results) >= max_results:
+                        break
+            print(f"YouTube search returned {len(results)} results")
             return results
         except Exception as e:
             print(f"YouTube search error: {e}")
+            import traceback
+            traceback.print_exc()
             return []
     
     def extract_insights(self, sources: Dict) -> List[str]:
