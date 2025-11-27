@@ -34,6 +34,9 @@ class ContentFlowAI:
         if not topic:
             return {"error": "Please enter a topic to research"}
         
+        if not sources:
+            return {"error": "Please select at least one source"}
+        
         results = {
             "topic": topic,
             "timestamp": datetime.now().isoformat(),
@@ -42,26 +45,47 @@ class ContentFlowAI:
             "knowledge_graph": None
         }
         
-        # Research from selected sources
-        if "ArXiv" in sources:
-            results["sources"]["arxiv"] = self.research_agent.search_arxiv(topic, max_results)
-        
-        if "Web Search" in sources:
-            results["sources"]["web"] = self.research_agent.search_web(topic, max_results)
-        
-        if "YouTube" in sources:
-            results["sources"]["youtube"] = self.research_agent.search_youtube(topic, max_results)
-        
-        # Extract key insights using AI
-        results["key_insights"] = self.research_agent.extract_insights(results["sources"])
-        
-        # Generate knowledge graph
-        results["knowledge_graph"] = self.research_agent.create_knowledge_graph(results["sources"])
-        
-        # Store in database
-        self.db_manager.store_research(results)
-        
-        return results
+        # Research from selected sources with error handling
+        try:
+            if "ArXiv" in sources:
+                print(f"Searching ArXiv for: {topic}")
+                arxiv_results = self.research_agent.search_arxiv(topic, max_results)
+                results["sources"]["arxiv"] = arxiv_results
+                print(f"Found {len(arxiv_results)} ArXiv results")
+            
+            if "Web Search" in sources:
+                print(f"Searching web for: {topic}")
+                web_results = self.research_agent.search_web(topic, max_results)
+                results["sources"]["web"] = web_results
+                print(f"Found {len(web_results)} web results")
+            
+            if "YouTube" in sources:
+                print(f"Searching YouTube for: {topic}")
+                youtube_results = self.research_agent.search_youtube(topic, max_results)
+                results["sources"]["youtube"] = youtube_results
+                print(f"Found {len(youtube_results)} YouTube results")
+            
+            # Extract key insights using AI
+            print("Extracting insights with AI...")
+            results["key_insights"] = self.research_agent.extract_insights(results["sources"])
+            print(f"Extracted {len(results['key_insights'])} insights")
+            
+            # Generate knowledge graph
+            print("Generating knowledge graph...")
+            results["knowledge_graph"] = self.research_agent.create_knowledge_graph(results["sources"])
+            
+            # Store in database
+            print("Storing in database...")
+            self.db_manager.store_research(results)
+            
+            print("Research complete!")
+            return results
+            
+        except Exception as e:
+            print(f"Error in research_topic: {e}")
+            import traceback
+            traceback.print_exc()
+            return {"error": f"Research failed: {str(e)}"}
     
     def analyze_performance(
         self,
@@ -118,24 +142,24 @@ def create_gradio_interface():
     
     app = ContentFlowAI()
     
-    # Custom CSS
+    # Custom CSS for loading animations
     custom_css = """
-    .gradio-container {
-        font-family: 'Inter', sans-serif;
+    .loading {
+        display: inline-block;
+        animation: spin 1s linear infinite;
     }
-    .research-box {
-        border: 2px solid #10b981;
-        border-radius: 8px;
-        padding: 20px;
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
     }
-    .content-box {
-        border: 2px solid #3b82f6;
+    .status-box {
+        padding: 15px;
         border-radius: 8px;
-        padding: 20px;
+        margin: 10px 0;
     }
     """
     
-    with gr.Blocks(css=custom_css, title="ContentFlow AI") as demo:
+    with gr.Blocks(title="ContentFlow AI", css=custom_css) as demo:
         
         # Header
         gr.Markdown("""
@@ -190,22 +214,52 @@ def create_gradio_interface():
                     if not topic:
                         return "❌ Please enter a topic", {}, "", {}
                     
-                    status = f"🔄 Researching '{topic}' from {len(sources)} sources..."
-                    yield status, {}, "", {}
+                    if not sources:
+                        return "❌ Please select at least one source", {}, "", {}
                     
-                    results = app.research_topic(topic, sources, max_res)
+                    # Initial loading state
+                    yield f"🔄 Starting research on '{topic}'...", {}, "", {}
                     
-                    # Format insights for display
-                    insights_text = "\n\n".join([f"• {insight}" for insight in results.get("key_insights", [])])
-                    
-                    final_status = f"✅ Research complete! Found {sum(len(v) for v in results.get('sources', {}).values())} items"
-                    
-                    return final_status, results, insights_text, results
+                    try:
+                        # Show progress for each source
+                        yield f"🔄 Searching {len(sources)} sources for '{topic}'...\n⏳ This may take 30-60 seconds...", {}, "", {}
+                        
+                        # Run research
+                        results = app.research_topic(topic, sources, max_res)
+                        
+                        # Check if we got results
+                        if not results or "error" in results:
+                            error_msg = results.get("error", "Unknown error") if results else "No results returned"
+                            return f"❌ Research failed: {error_msg}", {}, "", {}
+                        
+                        # Format insights for display
+                        insights = results.get("key_insights", [])
+                        if insights:
+                            insights_text = "\n\n".join([f"• {insight}" for insight in insights])
+                        else:
+                            insights_text = "No insights extracted yet. Research data collected successfully."
+                        
+                        # Count total sources found
+                        sources_dict = results.get('sources', {})
+                        total_items = sum(len(v) if isinstance(v, list) else 0 for v in sources_dict.values())
+                        
+                        final_status = f"✅ Research complete! Found {total_items} items from {len(sources_dict)} sources"
+                        
+                        return final_status, results, insights_text, results
+                        
+                    except Exception as e:
+                        error_msg = f"❌ Error during research: {str(e)}"
+                        print(f"Research error: {e}")
+                        import traceback
+                        traceback.print_exc()
+                        return error_msg, {}, "", {}
                 
                 research_btn.click(
                     fn=do_research,
                     inputs=[topic_input, source_selection, max_results],
-                    outputs=[research_status, research_output, insights_output, research_state]
+                    outputs=[research_status, research_output, insights_output, research_state],
+                    show_progress=True,  # Show progress indicator
+                    api_name="research"  # API endpoint name
                 )
             
             # ========== TAB 2: ANALYTICS ==========
@@ -394,8 +448,11 @@ def create_gradio_interface():
 
 if __name__ == "__main__":
     demo = create_gradio_interface()
+    demo.queue(max_size=20)  # Enable queue for better handling of long-running tasks
     demo.launch(
         share=False,
-        server_name="0.0.0.0",
-        server_port=7860
+        server_name="127.0.0.1",
+        server_port=7860,
+        show_error=True,  # Show detailed errors in UI
+        debug=True  # Enable debug mode for better error reporting
     )
